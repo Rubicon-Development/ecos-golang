@@ -1,3 +1,3 @@
-module example.com/go-hello
+module github.com/ecos-golang
 
-go 1.25
+go 1.21
