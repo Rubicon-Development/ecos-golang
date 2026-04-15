@@ -1,64 +1,97 @@
 {
-  description = "A simple Go package";
+  description = "Go bindings for the ECOS conic solver";
 
   inputs = {
-      nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    { self, nixpkgs }:
     let
-      # to work with older version of flakes
       lastModifiedDate = self.lastModifiedDate or self.lastModified or "19700101";
-      # Generate a user-friendly version number.
       version = builtins.substring 0 8 lastModifiedDate;
-      # System types to support.
-      supportedSystems = [ "x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
-      # Helper function to generate an attrset '{ x86_64-linux = f "x86_64-linux"; ... }'.
+      supportedSystems = [
+        "x86_64-linux"
+        "x86_64-darwin"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-      # Nixpkgs instantiated for supported system types.
       nixpkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
     in
     {
-      # Provide some binary packages for selected system types.
-      packages = forAllSystems (system:
+      packages = forAllSystems (
+        system:
         let
           pkgs = nixpkgsFor.${system};
+          ecosLib = pkgs.stdenv.mkDerivation {
+            pname = "ecos";
+            version = "2.0.10";
+
+            src = pkgs.fetchFromGitHub {
+              owner = "embotech";
+              repo = "ecos";
+              tag = "v2.0.10";
+              hash = "sha256-WMgqDc+XAY3g2wwlefjJ0ATxR5r/jL971FZKtxsunnU=";
+            };
+
+            buildPhase = ''
+              runHook preBuild
+              make all shared
+              runHook postBuild
+            '';
+
+            doCheck = false;
+
+            installPhase = ''
+              runHook preInstall
+              mkdir -p $out/lib $out/include
+              cp lib*.a lib*.so* $out/lib
+              cp -r include/* $out/include/
+              cp external/SuiteSparse_config/*.h $out/include/
+              cp external/amd/include/*.h $out/include/
+              cp external/ldl/include/*.h $out/include/
+              runHook postInstall
+            '';
+          };
         in
         {
-          go-hello = pkgs.buildGoModule {
-            pname = "go-hello";
+          default = pkgs.buildGoModule {
+            pname = "ecos-golang";
             inherit version;
-            # In 'nix develop', we don't need a copy of the source tree
-            # in the Nix store.
             src = ./.;
-            # This hash locks the dependencies of this package. It is
-            # necessary because of how Go requires network access to resolve
-            # VCS.  See https://www.tweag.io/blog/2021-03-04-gomod2nix/ for
-            # details. Normally one can build with a fake hash and rely on native Go
-            # mechanisms to tell you what the hash should be or determine what
-            # it should be "out-of-band" with other tooling (eg. gomod2nix).
-            # To begin with it is recommended to set this, but one must
-            # remember to bump this hash when your dependencies change.
-            # vendorHash = pkgs.lib.fakeHash;
             vendorHash = null;
-            # vendorHash = "sha256-pQpattmS9VmO3ZIQUFn66az8GSmB4IvYhTTCFn6SUmo=";
-          };
-        });
 
-      # Add dependencies that are only needed for development
-      devShells = forAllSystems (system:
+            buildInputs = [ ecosLib ];
+            nativeBuildInputs = [ pkgs.pkg-config ];
+
+            ldflags = [
+              "-s"
+              "-w"
+            ];
+          };
+        }
+      );
+
+      devShells = forAllSystems (
+        system:
         let
           pkgs = nixpkgsFor.${system};
         in
         {
           default = pkgs.mkShell {
-            buildInputs = with pkgs; [ go gopls gotools go-tools ];
-          };
-        });
+            inputsFrom = [ self.packages.${system}.default ];
 
-      # The default package for 'nix build'. This makes sense if the
-      # flake provides only one package or there is a clear "main"
-      # package.
-      defaultPackage = forAllSystems (system: self.packages.${system}.go-hello);
+            packages = with pkgs; [
+              go
+              gopls
+              gotools
+              go-tools
+            ];
+          };
+        }
+      );
+
+      defaultPackage = forAllSystems (system: self.packages.${system}.default);
     };
 }
