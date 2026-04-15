@@ -197,7 +197,7 @@ func main() {
 			"exit_flag": res.ExitFlag,
 			"objective": objective,
 			"iter":      res.Iter,
-			"variables": variableMap(resp.ColumnNames, res.X),
+			"variables": variableMap(resp.ColumnNames, res.X, resp.BoolVarsIdx, resp.IntVarsIdx),
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -214,24 +214,58 @@ func main() {
 	fmt.Printf("Objective: %.6f (offset %.6f)\n", objective, resp.ObjectiveOffset)
 	fmt.Printf("Iterations: %d\n\n", res.Iter)
 
+	boolSet := indexSet(resp.BoolVarsIdx)
+	intSet := indexSet(resp.IntVarsIdx)
+
 	fmt.Println("Solution:")
 	for i, v := range res.X {
 		name := fmt.Sprintf("x[%d]", i)
 		if i < len(resp.ColumnNames) {
 			name = resp.ColumnNames[i]
 		}
-		fmt.Printf("  %-16s = % .6f\n", name, v)
+		switch {
+		case boolSet[i]:
+			fmt.Printf("  %-16s = %d  (bool)\n", name, roundInt(v))
+		case intSet[i]:
+			fmt.Printf("  %-16s = %d  (int)\n", name, roundInt(v))
+		default:
+			fmt.Printf("  %-16s = % .6f\n", name, v)
+		}
 	}
 }
 
-func variableMap(names []string, x []float64) map[string]float64 {
-	out := make(map[string]float64, len(x))
+func variableMap(names []string, x []float64, boolIdx, intIdx []int) map[string]any {
+	boolSet := indexSet(boolIdx)
+	intSet := indexSet(intIdx)
+	out := make(map[string]any, len(x))
 	for i, v := range x {
 		name := fmt.Sprintf("x[%d]", i)
 		if i < len(names) {
 			name = names[i]
 		}
-		out[name] = v
+		switch {
+		case boolSet[i]:
+			out[name] = roundInt(v) != 0
+		case intSet[i]:
+			out[name] = roundInt(v)
+		default:
+			out[name] = v
+		}
 	}
 	return out
+}
+
+func indexSet(idx []int) map[int]bool {
+	s := make(map[int]bool, len(idx))
+	for _, i := range idx {
+		s[i] = true
+	}
+	return s
+}
+
+func roundInt(v float64) int64 {
+	if v >= 0 {
+		return int64(v + 0.5)
+	}
+	return int64(v - 0.5)
 }
