@@ -11,6 +11,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"unsafe"
 )
 
@@ -122,6 +123,13 @@ type Solution struct {
 	Stats    *Stats    // solver statistics
 }
 
+func copyPfloat(dst []float64, src *C.pfloat, n int) {
+	if src == nil || n == 0 {
+		return
+	}
+	copy(dst, unsafe.Slice((*float64)(unsafe.Pointer(src)), n))
+}
+
 func allocIdxintSlice(values []int) (*C.idxint, unsafe.Pointer, error) {
 	if len(values) == 0 {
 		return nil, nil, nil
@@ -159,6 +167,15 @@ func Setup(prob *Problem, settings *Settings) (*Workspace, error) {
 	if prob.G == nil || len(prob.G.Data) == 0 {
 		return nil, errors.New("G matrix is required")
 	}
+	if prob.G.M != prob.M || prob.G.N != prob.N {
+		return nil, fmt.Errorf("G dimensions (%dx%d) do not match problem (%dx%d)", prob.G.M, prob.G.N, prob.M, prob.N)
+	}
+	if len(prob.G.ColP) != prob.N+1 {
+		return nil, fmt.Errorf("G.ColP length %d, expected %d", len(prob.G.ColP), prob.N+1)
+	}
+	if len(prob.G.Data) != len(prob.G.RowI) {
+		return nil, errors.New("G.Data and G.RowI length mismatch")
+	}
 	if len(prob.C) != prob.N {
 		return nil, errors.New("c vector length must match N")
 	}
@@ -171,6 +188,15 @@ func Setup(prob *Problem, settings *Settings) (*Workspace, error) {
 	if prob.P > 0 {
 		if prob.A == nil || len(prob.A.Data) == 0 {
 			return nil, errors.New("A matrix required when P > 0")
+		}
+		if prob.A.M != prob.P || prob.A.N != prob.N {
+			return nil, fmt.Errorf("A dimensions (%dx%d) do not match problem (%dx%d)", prob.A.M, prob.A.N, prob.P, prob.N)
+		}
+		if len(prob.A.ColP) != prob.N+1 {
+			return nil, fmt.Errorf("A.ColP length %d, expected %d", len(prob.A.ColP), prob.N+1)
+		}
+		if len(prob.A.Data) != len(prob.A.RowI) {
+			return nil, errors.New("A.Data and A.RowI length mismatch")
 		}
 		if len(prob.B) != prob.P {
 			return nil, errors.New("b vector length must match P")
@@ -317,6 +343,7 @@ func Setup(prob *Problem, settings *Settings) (*Workspace, error) {
 	}
 
 	ws.work = work
+	runtime.SetFinalizer(ws, (*Workspace).Cleanup)
 	return ws, nil
 }
 
@@ -334,27 +361,12 @@ func (w *Workspace) Solve() (*Solution, error) {
 		ExitFlag: exitFlag,
 	}
 
-	// Copy solution vectors and statistics
-	if w.work.x != nil && w.n > 0 {
-		for i := 0; i < w.n; i++ {
-			sol.X[i] = float64(*(*C.pfloat)(unsafe.Add(unsafe.Pointer(w.work.x), uintptr(i)*unsafe.Sizeof(C.pfloat(0)))))
-		}
-	}
-	if w.work.y != nil && w.p > 0 {
-		for i := 0; i < w.p; i++ {
-			sol.Y[i] = float64(*(*C.pfloat)(unsafe.Add(unsafe.Pointer(w.work.y), uintptr(i)*unsafe.Sizeof(C.pfloat(0)))))
-		}
-	}
-	if w.work.z != nil && w.m > 0 {
-		for i := 0; i < w.m; i++ {
-			sol.Z[i] = float64(*(*C.pfloat)(unsafe.Add(unsafe.Pointer(w.work.z), uintptr(i)*unsafe.Sizeof(C.pfloat(0)))))
-		}
-	}
-	if w.work.s != nil && w.m > 0 {
-		for i := 0; i < w.m; i++ {
-			sol.S[i] = float64(*(*C.pfloat)(unsafe.Add(unsafe.Pointer(w.work.s), uintptr(i)*unsafe.Sizeof(C.pfloat(0)))))
-		}
-	}
+	// Copy solution vectors and statistics. pfloat is double, so it
+	// is layout-compatible with float64 and we can bulk-copy.
+	copyPfloat(sol.X, w.work.x, w.n)
+	copyPfloat(sol.Y, w.work.y, w.p)
+	copyPfloat(sol.Z, w.work.z, w.m)
+	copyPfloat(sol.S, w.work.s, w.m)
 
 	if w.work.info != nil {
 		sol.Stats = &Stats{
@@ -397,6 +409,7 @@ func (w *Workspace) Cleanup() {
 		}
 	}
 	w.allocations = nil
+	runtime.SetFinalizer(w, nil)
 }
 
 func Version() string {
@@ -410,6 +423,12 @@ func NewSparseMatrixFromDense(dense [][]float64) *SparseMatrix {
 
 	m := len(dense)
 	n := len(dense[0])
+
+	for i := 1; i < m; i++ {
+		if len(dense[i]) != n {
+			return nil
+		}
+	}
 
 	// Count non-zeros
 	nnz := 0
