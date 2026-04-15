@@ -1,7 +1,7 @@
 package ecos
 
 /*
-#cgo CFLAGS: -I../ecos/include -I../ecos/external/SuiteSparse_config -I../ecos/external/amd/include -I../ecos/external/ldl/include
+#cgo CFLAGS: -I../ecos/include -I../ecos/external/SuiteSparse_config -I../ecos/external/amd/include -I../ecos/external/ldl/include -DDLONG -DLDL_LONG
 #cgo LDFLAGS: -L../ecos -lecos -lm
 #include <stdlib.h>
 #include <stddef.h>
