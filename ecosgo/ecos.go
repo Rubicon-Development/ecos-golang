@@ -1,8 +1,15 @@
 package ecos
 
+// ECOS is vendored as a git submodule at ../ecos. Before `go build`, run
+//     make -C ecos
+// from the repo root to produce libecos.a / libecos_bb.a, or let the nix
+// flake do it. ECOS must be built with the same integer size as these cgo
+// defines (-DDLONG makes idxint = SuiteSparse_long); mismatches silently
+// corrupt pointer arithmetic — that's how we got a segfault earlier.
+
 /*
-#cgo CFLAGS: -I../ecos/include -I../ecos/external/SuiteSparse_config -I../ecos/external/amd/include -I../ecos/external/ldl/include -DDLONG -DLDL_LONG
-#cgo LDFLAGS: -L../ecos -lecos -lm
+#cgo CFLAGS: -I${SRCDIR}/../ecos/include -I${SRCDIR}/../ecos/external/SuiteSparse_config -I${SRCDIR}/../ecos/external/amd/include -I${SRCDIR}/../ecos/external/ldl/include -DDLONG -DLDL_LONG
+#cgo LDFLAGS: -L${SRCDIR}/../ecos -lecos -lm
 #include <stdlib.h>
 #include <stddef.h>
 #include "ecos.h"
@@ -56,7 +63,7 @@ func DefaultSettings() *Settings {
 		RelTolInacc:  5e-5,
 		NItRef:       9,
 		MaxIt:        100,
-		Verbose:      1,
+		Verbose:      0,
 	}
 }
 
@@ -327,19 +334,24 @@ func Setup(prob *Problem, settings *Settings) (*Workspace, error) {
 		return nil, errors.New("failed to setup ECOS workspace")
 	}
 
-	if settings != nil && work.stgs != nil {
-		work.stgs.gamma = C.pfloat(settings.Gamma)
-		work.stgs.delta = C.pfloat(settings.Delta)
-		work.stgs.eps = C.pfloat(settings.Eps)
-		work.stgs.feastol = C.pfloat(settings.FeasTol)
-		work.stgs.abstol = C.pfloat(settings.AbsTol)
-		work.stgs.reltol = C.pfloat(settings.RelTol)
-		work.stgs.feastol_inacc = C.pfloat(settings.FeasTolInacc)
-		work.stgs.abstol_inacc = C.pfloat(settings.AbsTolInacc)
-		work.stgs.reltol_inacc = C.pfloat(settings.RelTolInacc)
-		work.stgs.nitref = C.idxint(settings.NItRef)
-		work.stgs.maxit = C.idxint(settings.MaxIt)
-		work.stgs.verbose = C.idxint(settings.Verbose)
+	if work.stgs != nil {
+		if settings != nil {
+			work.stgs.gamma = C.pfloat(settings.Gamma)
+			work.stgs.delta = C.pfloat(settings.Delta)
+			work.stgs.eps = C.pfloat(settings.Eps)
+			work.stgs.feastol = C.pfloat(settings.FeasTol)
+			work.stgs.abstol = C.pfloat(settings.AbsTol)
+			work.stgs.reltol = C.pfloat(settings.RelTol)
+			work.stgs.feastol_inacc = C.pfloat(settings.FeasTolInacc)
+			work.stgs.abstol_inacc = C.pfloat(settings.AbsTolInacc)
+			work.stgs.reltol_inacc = C.pfloat(settings.RelTolInacc)
+			work.stgs.nitref = C.idxint(settings.NItRef)
+			work.stgs.maxit = C.idxint(settings.MaxIt)
+			work.stgs.verbose = C.idxint(settings.Verbose)
+		} else {
+			// Quiet by default; ECOS's C default is verbose=1 which floods stdout.
+			work.stgs.verbose = 0
+		}
 	}
 
 	ws.work = work

@@ -3,6 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Include the vendored ECOS git submodule in `self`. Without this,
+    # `src = ./.` in a flake omits submodule contents and the preBuild
+    # `make -C ecos` step has nothing to compile.
+    self.submodules = true;
   };
 
   outputs =
@@ -24,46 +28,23 @@
         system:
         let
           pkgs = nixpkgsFor.${system};
-          ecosLib = pkgs.stdenv.mkDerivation {
-            pname = "ecos";
-            version = "2.0.10";
-
-            src = pkgs.fetchFromGitHub {
-              owner = "embotech";
-              repo = "ecos";
-              tag = "v2.0.10";
-              hash = "sha256-WMgqDc+XAY3g2wwlefjJ0ATxR5r/jL971FZKtxsunnU=";
-            };
-
-            buildPhase = ''
-              runHook preBuild
-              make all shared
-              runHook postBuild
-            '';
-
-            doCheck = false;
-
-            installPhase = ''
-              runHook preInstall
-              mkdir -p $out/lib $out/include
-              cp lib*.a lib*.so* $out/lib
-              cp -r include/* $out/include/
-              cp external/SuiteSparse_config/*.h $out/include/
-              cp external/amd/include/*.h $out/include/
-              cp external/ldl/include/*.h $out/include/
-              runHook postInstall
-            '';
-          };
         in
         {
           default = pkgs.buildGoModule {
             pname = "ecos-golang";
             inherit version;
+            # `self.submodules = true` in inputs ensures this tree includes
+            # the vendored ECOS sources so `make -C ecos` in preBuild works.
             src = ./.;
             vendorHash = null;
 
-            buildInputs = [ ecosLib ];
-            nativeBuildInputs = [ pkgs.pkg-config ];
+            nativeBuildInputs = [ pkgs.gnumake ];
+
+            # Build the vendored ECOS static libs before compiling Go. cgo then
+            # picks them up via -L${SRCDIR}/../ecos in ecosgo/ecos.go.
+            preBuild = ''
+              make -C ecos
+            '';
 
             ldflags = [
               "-s"
@@ -87,6 +68,7 @@
               gopls
               gotools
               go-tools
+              gnumake
             ];
           };
         }

@@ -1,8 +1,8 @@
 package ecos
 
 /*
-#cgo CFLAGS: -DDLONG -DLDL_LONG
-#cgo LDFLAGS: -lecos_bb
+#cgo CFLAGS: -I${SRCDIR}/../ecos/include -I${SRCDIR}/../ecos/external/SuiteSparse_config -I${SRCDIR}/../ecos/external/amd/include -I${SRCDIR}/../ecos/external/ldl/include -DDLONG -DLDL_LONG
+#cgo LDFLAGS: -L${SRCDIR}/../ecos -lecos_bb
 #include <stdlib.h>
 #include <stddef.h>
 #include "ecos_bb.h"
@@ -194,6 +194,15 @@ func BBSetup(prob *BBProblem) (*BBWorkspace, error) {
 	if work == nil {
 		ws.Cleanup()
 		return nil, errors.New("failed to setup ECOS_BB workspace")
+	}
+
+	// Quiet by default. The inner ECOS relaxation is solved many times during
+	// branch-and-bound, so its verbose output is especially noisy.
+	if work.stgs != nil {
+		work.stgs.verbose = 0
+	}
+	if work.ecos_prob != nil && work.ecos_prob.stgs != nil {
+		work.ecos_prob.stgs.verbose = 0
 	}
 
 	_ = qPtr // qPtr may be nil; keep linter quiet
