@@ -1,8 +1,8 @@
 package ecos
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../ecos/include -I${SRCDIR}/../ecos/external/SuiteSparse_config -I${SRCDIR}/../ecos/external/amd/include -I${SRCDIR}/../ecos/external/ldl/include -DDLONG -DLDL_LONG
-#cgo LDFLAGS: -L${SRCDIR}/../ecos -lecos_bb
+// CFLAGS/LDFLAGS for both ECOS and ECOS_BB are centralized in ecos.go —
+// the amalgamation in cgo_sources.c already includes the ECOS_BB C sources.
 #include <stdlib.h>
 #include <stddef.h>
 #include "ecos_bb.h"

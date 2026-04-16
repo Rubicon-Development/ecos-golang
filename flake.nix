@@ -4,8 +4,8 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     # Include the vendored ECOS git submodule in `self`. Without this,
-    # `src = ./.` in a flake omits submodule contents and the preBuild
-    # `make -C ecos` step has nothing to compile.
+    # `src = ./.` in a flake omits submodule contents and cgo can't find
+    # the C sources referenced by ecosgo/cgo_sources.c.
     self.submodules = true;
   };
 
@@ -34,17 +34,9 @@
             pname = "ecos-golang";
             inherit version;
             # `self.submodules = true` in inputs ensures this tree includes
-            # the vendored ECOS sources so `make -C ecos` in preBuild works.
+            # the vendored ECOS C sources that cgo_sources.c #includes.
             src = ./.;
             vendorHash = null;
-
-            nativeBuildInputs = [ pkgs.gnumake ];
-
-            # Build the vendored ECOS static libs before compiling Go. cgo then
-            # picks them up via -L${SRCDIR}/../ecos in ecosgo/ecos.go.
-            preBuild = ''
-              make -C ecos
-            '';
 
             ldflags = [
               "-s"
@@ -68,7 +60,6 @@
               gopls
               gotools
               go-tools
-              gnumake
             ];
           };
         }

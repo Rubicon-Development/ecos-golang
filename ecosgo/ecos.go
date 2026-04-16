@@ -1,15 +1,14 @@
 package ecos
 
-// ECOS is vendored as a git submodule at ../ecos. Before `go build`, run
-//     make -C ecos
-// from the repo root to produce libecos.a / libecos_bb.a, or let the nix
-// flake do it. ECOS must be built with the same integer size as these cgo
-// defines (-DDLONG makes idxint = SuiteSparse_long); mismatches silently
-// corrupt pointer arithmetic — that's how we got a segfault earlier.
+// ECOS is vendored as a git submodule at ../ecos. Its C sources are compiled
+// as part of this package's cgo build via cgo_sources.c, so downstream
+// consumers can `go get` without running `make`. -DDLONG -DLDL_LONG selects
+// the SuiteSparse_long (64-bit) integer variants — idxint must match what
+// cgo sees, or pointer arithmetic corrupts silently (this bit us before).
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../ecos/include -I${SRCDIR}/../ecos/external/SuiteSparse_config -I${SRCDIR}/../ecos/external/amd/include -I${SRCDIR}/../ecos/external/ldl/include -DDLONG -DLDL_LONG
-#cgo LDFLAGS: -L${SRCDIR}/../ecos -lecos -lm
+#cgo CFLAGS: -I${SRCDIR}/../ecos/include -I${SRCDIR}/../ecos/external/SuiteSparse_config -I${SRCDIR}/../ecos/external/amd/include -I${SRCDIR}/../ecos/external/ldl/include -DDLONG -DLDL_LONG -DCTRLC=1 -w
+#cgo LDFLAGS: -lm
 #include <stdlib.h>
 #include <stddef.h>
 #include "ecos.h"
