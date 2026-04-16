@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"time"
 
-	ecos "github.com/ecos-golang/ecosgo"
+	ecos "github.com/Rubicon-Development/ecos-golang/ecosgo"
 )
 
 // Result holds the solution returned by ECOS after solving.

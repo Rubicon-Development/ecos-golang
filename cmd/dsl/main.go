@@ -18,7 +18,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/ecos-golang/client"
+	"github.com/Rubicon-Development/ecos-golang/client"
 )
 
 func main() {
