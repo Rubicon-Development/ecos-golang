@@ -1,13 +1,12 @@
 package ecos
 
-// ECOS is vendored as a git submodule at ../ecos. Its C sources are compiled
-// as part of this package's cgo build via cgo_sources.c, so downstream
-// consumers can `go get` without running `make`. -DDLONG -DLDL_LONG selects
-// the SuiteSparse_long (64-bit) integer variants — idxint must match what
-// cgo sees, or pointer arithmetic corrupts silently (this bit us before).
+// ECOS C sources live alongside the Go files in this directory so that
+// `go get` / `go mod vendor` just works — cgo compiles them automatically.
+// -DDLONG -DLDL_LONG selects the SuiteSparse_long (64-bit) integer variants;
+// idxint must match what cgo sees, or pointer arithmetic corrupts silently.
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../ecos/include -I${SRCDIR}/../ecos/external/SuiteSparse_config -I${SRCDIR}/../ecos/external/amd/include -I${SRCDIR}/../ecos/external/ldl/include -DDLONG -DLDL_LONG -DCTRLC=1 -w
+#cgo CFLAGS: -I${SRCDIR} -DDLONG -DLDL_LONG -DCTRLC=1 -w
 #cgo LDFLAGS: -lm
 #include <stdlib.h>
 #include <stddef.h>

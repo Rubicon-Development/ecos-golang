@@ -1,8 +1,7 @@
 package ecos
 
 /*
-// CFLAGS/LDFLAGS for both ECOS and ECOS_BB are centralized in ecos.go —
-// the amalgamation in cgo_sources.c already includes the ECOS_BB C sources.
+#cgo CFLAGS: -I${SRCDIR}
 #include <stdlib.h>
 #include <stddef.h>
 #include "ecos_bb.h"
